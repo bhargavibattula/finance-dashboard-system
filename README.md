@@ -164,11 +164,24 @@ http://localhost:8080/swagger-ui/index.html
 
 ---
 
-## 🔐 Default Admin Setup
+## 🔐 Default Admin Access
 
-To bootstrap the system, insert an admin user directly into DB or use a seeding approach.
+To ensure smooth testing, the application automatically seeds a default admin user on first startup.
+
+### 👤 Admin Credentials
+
+```
+Email: admin@test.com  
+Password: Password@123
+```
+
+### ⚠️ Note
+
+* This admin is created only if no users exist in the database.
+* After deployment, you can log in immediately using these credentials and test all APIs.
 
 ---
+
 
 ## 💡 Design Decisions
 
