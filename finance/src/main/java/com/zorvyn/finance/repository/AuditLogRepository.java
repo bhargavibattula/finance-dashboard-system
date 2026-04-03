@@ -11,26 +11,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
@@ -48,23 +28,37 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
      * Results are always returned newest-first (ORDER BY createdAt DESC)
      * because the most recent events are the most relevant when
      * investigating an issue.
+     *
+     * Uses a native PostgreSQL query with explicit ::type casts to avoid
+     * the "could not determine data type of parameter $N" error that
+     * PostgreSQL throws when it cannot infer the type of a bare ?/$ parameter
+     * appearing only in an IS NULL check.
      */
-    @Query("""
-            SELECT a FROM AuditLog a
-            WHERE (:actorId    IS NULL OR a.actorId    = :actorId)
-              AND (:action     IS NULL OR a.action     = :action)
-              AND (:entityType IS NULL OR a.entityType = :entityType)
-              AND (:from       IS NULL OR a.createdAt  >= :from)
-              AND (:to         IS NULL OR a.createdAt  <= :to)
-            ORDER BY a.createdAt DESC
-            """)
+    @Query(value = """
+            SELECT * FROM audit_logs al
+            WHERE (:actorId     ::uuid      IS NULL OR al.actor_id    = :actorId     ::uuid)
+              AND (:action      ::text      IS NULL OR al.action      = :action      ::text)
+              AND (:entityType  ::text      IS NULL OR al.entity_type = :entityType  ::text)
+              AND (:from        ::timestamp IS NULL OR al.created_at >= :from        ::timestamp)
+              AND (:to          ::timestamp IS NULL OR al.created_at <= :to          ::timestamp)
+            ORDER BY al.created_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM audit_logs al
+            WHERE (:actorId     ::uuid      IS NULL OR al.actor_id    = :actorId     ::uuid)
+              AND (:action      ::text      IS NULL OR al.action      = :action      ::text)
+              AND (:entityType  ::text      IS NULL OR al.entity_type = :entityType  ::text)
+              AND (:from        ::timestamp IS NULL OR al.created_at >= :from        ::timestamp)
+              AND (:to          ::timestamp IS NULL OR al.created_at <= :to          ::timestamp)
+            """,
+            nativeQuery = true)
     Page<AuditLog> findAllWithFilters(
             @Param("actorId")    UUID          actorId,
-            @Param("action")     AuditAction   action,
+            @Param("action")     String        action,       // String instead of AuditAction — pass action.name() from the caller
             @Param("entityType") String        entityType,
             @Param("from")       LocalDateTime from,
             @Param("to")         LocalDateTime to,
-            Pageable pageable
+            Pageable              pageable
     );
 
     // ----------------------------------------------------------------
@@ -113,4 +107,3 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
             Pageable pageable
     );
 }
-

@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
 /**
  * Audit log read endpoints — ADMIN only.
  *
@@ -84,7 +83,7 @@ public class AuditLogController {
             @RequestParam(defaultValue = "20") int size) {
 
         size = Math.min(size, 100);
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Pageable pageable = PageRequest.of(page, size);
 
         // Convert LocalDate to LocalDateTime for the repository query
         LocalDateTime fromDt = (dateFrom != null)
@@ -95,7 +94,7 @@ public class AuditLogController {
                 : null;
 
         Page<AuditLog> auditPage = auditLogRepository.findAllWithFilters(
-                actorId, action, entityType, fromDt, toDt, pageable);
+                actorId, action != null ? action.name() : null, entityType, fromDt, toDt, pageable);
 
         List<Map<String, Object>> content = auditPage.getContent()
                 .stream()
@@ -157,7 +156,7 @@ public class AuditLogController {
             @RequestParam(defaultValue = "20") int size) {
 
         size = Math.min(size, 100);
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Pageable pageable = PageRequest.of(page, size);
 
         Page<AuditLog> auditPage = auditLogRepository
                 .findByActorIdOrderByCreatedAtDesc(actorId, pageable);
