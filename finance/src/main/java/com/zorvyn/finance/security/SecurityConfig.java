@@ -66,15 +66,10 @@ public class SecurityConfig {
 
                         // ✅ PUBLIC ENDPOINTS
                         .requestMatchers(
-                                "/v1/auth/login",
-                                "/v1/auth/register",
-                                "/v1/auth/refresh",
-
-                                // 🔥 FIXED SWAGGER PATHS
+                                "/v1/auth/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/v3/api-docs/**",   // ✅ IMPORTANT FIX
-                                "/v3/api-docs"
+                                "/v3/api-docs/**"
                         ).permitAll()
 
                         // ADMIN

@@ -5,7 +5,6 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,53 +17,62 @@ import java.util.Date;
 public class JwtUtil {
 
     private static final String CLAIM_TOKEN_TYPE = "type";
-    private static final String CLAIM_ROLE = "role";
-    private static final String TYPE_ACCESS = "ACCESS";
-    private static final String TYPE_REFRESH = "REFRESH";
+    private static final String CLAIM_ROLE        = "role";
+    private static final String TYPE_ACCESS       = "ACCESS";
+    private static final String TYPE_REFRESH      = "REFRESH";
 
     private final SecretKey signingKey;
-    private final long accessExpiryMs;
-    private final long refreshExpiryMs;
+    private final long      accessExpiryMs;
+    private final long      refreshExpiryMs;
 
     public JwtUtil(
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.access-token-expiry-ms}") long accessExpiryMs,
             @Value("${app.jwt.refresh-token-expiry-ms}") long refreshExpiryMs) {
 
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.accessExpiryMs = accessExpiryMs;
+        this.signingKey      = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.accessExpiryMs  = accessExpiryMs;
         this.refreshExpiryMs = refreshExpiryMs;
     }
 
-    // ==============================
-    // Token Generation
-    // ==============================
+    // ----------------------------------------------------------------
+    // Token generation
+    // ----------------------------------------------------------------
 
     public String generateAccessToken(User user) {
-        return buildToken(user, TYPE_ACCESS, accessExpiryMs);
+        return buildTokenFromUser(user, TYPE_ACCESS, accessExpiryMs);
     }
 
     public String generateRefreshToken(User user) {
-        return buildToken(user, TYPE_REFRESH, refreshExpiryMs);
+        return buildTokenFromUser(user, TYPE_REFRESH, refreshExpiryMs);
     }
 
-    private String buildToken(User user, String tokenType, long expiryMs) {
-        Date now = new Date();
-        Date expiry = new Date(now.getTime() + expiryMs);
+    /**
+     * Issues a new access token by reading email and role from
+     * an already-validated refresh token — no DB call needed.
+     * Called by AuthController on POST /api/v1/auth/refresh.
+     */
+    public String generateAccessTokenFromRefreshToken(String refreshToken) {
+        Claims claims   = parseClaims(refreshToken);
+        String email    = claims.getSubject();
+        String roleName = claims.get(CLAIM_ROLE, String.class);
+
+        Date now    = new Date();
+        Date expiry = new Date(now.getTime() + accessExpiryMs);
 
         return Jwts.builder()
-                .setSubject(user.getEmail()) // FIXED
-                .claim(CLAIM_TOKEN_TYPE, tokenType)
-                .claim(CLAIM_ROLE, user.getRole().name())
-                .setIssuedAt(now) // FIXED
-                .setExpiration(expiry) // FIXED
-                .signWith(signingKey, SignatureAlgorithm.HS256) // FIXED
+                .subject(email)
+                .claim(CLAIM_TOKEN_TYPE, TYPE_ACCESS)
+                .claim(CLAIM_ROLE, roleName)
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(signingKey)
                 .compact();
     }
 
-    // ==============================
-    // Token Inspection
-    // ==============================
+    // ----------------------------------------------------------------
+    // Token inspection
+    // ----------------------------------------------------------------
 
     public String extractEmail(String token) {
         return parseClaims(token).getSubject();
@@ -92,17 +100,29 @@ public class JwtUtil {
         return accessExpiryMs / 1000;
     }
 
-    // ==============================
-    // Internal Parsing
-    // ==============================
+    // ----------------------------------------------------------------
+    // Internal
+    // ----------------------------------------------------------------
 
-    private Claims parseClaims(String token) {
+    private String buildTokenFromUser(User user, String tokenType, long expiryMs) {
+        Date now = new Date();
+        return Jwts.builder()
+                .subject(user.getEmail())
+                .claim(CLAIM_TOKEN_TYPE, tokenType)
+                .claim(CLAIM_ROLE, user.getRole().name())
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + expiryMs))
+                .signWith(signingKey)
+                .compact();
+    }
+
+    Claims parseClaims(String token) {
         try {
-            return Jwts.parserBuilder() // FIXED
-                    .setSigningKey(signingKey) // FIXED
+            return Jwts.parser()
+                    .verifyWith(signingKey)
                     .build()
-                    .parseClaimsJws(token) // FIXED
-                    .getBody(); // FIXED
+                    .parseSignedClaims(token)
+                    .getPayload();
         } catch (ExpiredJwtException e) {
             throw new RuntimeException("JWT token has expired", e);
         } catch (JwtException e) {
