@@ -242,11 +242,7 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-### 4️⃣ Swagger
 
-```bash
-http://localhost:8080/swagger-ui/index.html
-```
 
 ---
 
